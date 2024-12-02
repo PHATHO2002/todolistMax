@@ -1,98 +1,51 @@
 <?php
+session_start();
+require_once dirname(__DIR__) . '\config\database.php';
 
-require_once('config/database.php');
-require_once('models/user.php');
+use Models\UserModel;
 
-class UserController
+require_once dirname(__DIR__) . '\models\user.php';
+require_once dirname(__DIR__) . '\controller\BaseController.php';
+
+
+require_once('BaseController.php');
+class UserController extends BaseController
 {
-    private $username;
-    private $password;
-
-    public function __construct($username, $password)
+    public function __construct()
     {
-        $this->username = $username;
-        $this->password = $password;
-    }
-
-
-    public static function validateNotEmptyAndLength($fieldName, $fieldValue, $minLength = null)
-    {
-        $fieldValue = trim($fieldValue);
-
-        if (empty($fieldValue)) {
-            return "$fieldName cannot be empty.";
+        try {
+            $this->db = getDatabaseConnection();
+            $this->model = new UserModel($this->db);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode([
+                'message' => 'Không thể kết nối với cơ sở dữ liệu. Chi tiết lỗi: ' . $e->getMessage(),
+                'data' => null
+            ]);
+            exit();
         }
-
-        if ($minLength && strlen($fieldValue) < $minLength) {
-            return "$fieldName must be at least $minLength characters long.";
-        }
-
-        return null;
     }
 
     public function login()
     {
-        try {
-            if ($error = self::validateNotEmptyAndLength('Username', $this->username)) {
-                header("Location: index.php?action=get_fom_login&err=$error");
-                exit();
-            }
-            if ($error = self::validateNotEmptyAndLength('Password', $this->password)) {
-                header("Location: index.php?action=get_fom_login&err=$error");
-                exit();
-            }
-            $db = getDatabaseConnection();
-            $userModel = new UserModel($db);
-            $userModel->username = $this->username;
-            $userModel->password = $this->password;
-            $response = $userModel->readOne();
-            $message = $response['message'];
-
-            if (!$response['errcode']) {
-                $_SESSION['userdata'] = $response['data'];
-                header("Location: index.php");
-                exit();
-            } else {
-                header("Location: index.php?action=get_fom_login&err=$message");
-                exit();
-            }
-        } catch (Exception $e) {
-            header("Location: index.php?action=get_fom_login&err=" . $e->getMessage());
-            exit();
+        $respone = $this->model->readOne($_POST['username'] ?? null, $_POST['password'] ?? null);
+        if ($respone['httpcode'] == 200) {
+            $_SESSION['userdata'] = $respone['data'];
         }
+        $this->sendRespone($respone['httpcode'], $respone['message'], $respone['data']);
     }
-
+    public function logout()
+    {
+        $this->checkSession();
+        session_unset();
+        session_destroy();
+        $this->sendRespone(200, 'logout succesful', null);
+    }
     public function signIn()
     {
-        try {
-
-            if ($error = self::validateNotEmptyAndLength('Username', $this->username)) {
-                header("Location: index.php?action=get_sign_form&err=$error");
-                exit();
-            }
-            if ($error = self::validateNotEmptyAndLength('Password', $this->password, 6)) {
-                header("Location: index.php?action=get_sign_form&err=$error");
-                exit();
-            }
-
-
-            $db = getDatabaseConnection();
-            $userModel = new UserModel($db);
-            $userModel->username = $this->username;
-            $userModel->password = $this->password;
-            $response = $userModel->create();
-            $message = $response['message'];
-
-            if (!$response['errcode']) {
-                header("Location: index.php?action=get_sign_form&err=$message");
-                exit();
-            } else {
-                header("Location: index.php?action=get_sign_form&err=$message");
-                exit();
-            }
-        } catch (Exception $e) {
-            header("Location: index.php?action=get_sign_form&err=" . $e->getMessage());
-            exit();
-        }
+        $username = $_POST['username'] ?? null;
+        $password = $_POST['password'] ?? null;
+        $respone = $this->model->createUser($username, $password);
+        $this->sendRespone($respone['httpcode'], $respone['message'], $respone['data']);
     }
 }

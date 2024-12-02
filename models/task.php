@@ -1,238 +1,160 @@
 <?php
-class TaskModel
-{
-    private $conn;
-    private $table_name = "task";
 
-    public $title;
-    public $status;
-    public $content;
-    public $priority;
-    public $completed;
+namespace Models;
+
+use Models\BaseModels;
+
+require_once dirname(__DIR__) . '\models\base.php';
+
+class TaskModel extends BaseModels
+{
     public function __construct($db)
     {
-        $this->conn = $db;
+        $this->tableName = 'task';
+        parent::__construct($db);
     }
-    public function selectAll($userId)
+    public function createTask($user_id, $data)
     {
         try {
-            $query = "SELECT * FROM " . $this->table_name . " WHERE user_id = :user_id";
-            $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(":user_id", $userId);
-            if ($stmt->execute()) {
-                $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                return [
-                    'errcode' => 0,
-                    'message' => 'get all successful',
-                    'data' => $result
-                ];
-            } else {
-                return [
-                    'errcode' => 1,
-                    'message' => 'get all failed',
-                    'data' => null
-                ];
+            if ($err = $this->validateEmpty('title', $data['title'])) {
+                return $this->createResponse(404, $err);
             }
-        } catch (PDOException $e) {
-            return [
-                'errcode' => 2,
-                'message' => 'Database error: ' . $e->getMessage(),
-                'data' => null
-            ];
-        }
-    }
-    public function selectField($userId, $fieldName, $value)
-    {
-        try {
-            $query = "SELECT * FROM " . $this->table_name . " WHERE user_id = :user_id  AND $fieldName =:$fieldName ";
-            $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(":user_id", $userId);
-            $stmt->bindParam(":$fieldName", $value);
+            if ($err = $this->validateEmpty('content', $data['content'])) {
+                return $this->createResponse(404, $err);
+            }
+            if ($err = $this->validateEmpty('priority', $data['priority'])) {
+                return $this->createResponse(404, $err);
+            }
+            if ($err = $this->validateEmpty('user_id', $user_id)) {
+                return $this->createResponse(404, $err);
+            }
 
-            if ($stmt->execute()) {
-                $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                return [
-                    'errcode' => 0,
-                    'message' => 'Get records successfully',
-                    'data' => $result
-                ];
-            } else {
-                return [
-                    'errcode' => 1,
-                    'message' => 'Get records failed.',
-                    'data' => null
-                ];
-            }
-        } catch (PDOException $e) {
-            return [
-                'errcode' => 2,
-                'message' => 'Database error: ' . $e->getMessage(),
-                'data' => null
-            ];
-        }
-    }
-    public function selectOne($taskId)
-    {
-        try {
-            $query = "SELECT * FROM " . $this->table_name . " WHERE task_id = :task_id";
-            $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(":task_id", $taskId);
-            if ($stmt->execute()) {
-                $result = $stmt->fetch(PDO::FETCH_ASSOC);
-                return [
-                    'errcode' => 0,
-                    'message' => 'get all successful',
-                    'data' => $result
-                ];
-            } else {
-                return [
-                    'errcode' => 1,
-                    'message' => 'get all failed',
-                    'data' => null
-                ];
-            }
-        } catch (PDOException $e) {
-            return [
-                'errcode' => 2,
-                'message' => 'Database error: ' . $e->getMessage(),
-                'data' => null
-            ];
-        }
-    }
-    public function create($user_id)
-    {
-        try {
-
-            $query = "INSERT INTO " . $this->table_name . " SET title = :title,  status = :status,content=:content,priority=:priority,completed=:completed,user_id=:user_id";
-            $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(":title", $this->title);
-            $stmt->bindParam(":status", $this->status);
-            $stmt->bindParam(":content", $this->content);
-            $stmt->bindParam(":priority", $this->priority);
-            $stmt->bindParam(":completed", $this->completed);
+            $query = "INSERT INTO " . $this->tableName . " SET title = :title,  status = :status,content=:content,priority=:priority,completed=:completed,user_id=:user_id";
+            $stmt = $this->db->prepare($query);
+            $stmt->bindParam(":title", $data['title']);
+            $status = 'incomplete';
+            $stmt->bindParam(":status",   $status);
+            $stmt->bindParam(":content", $data['content']);
+            $stmt->bindParam(":priority", $data['priority']);
+            $completed = 0;
+            $stmt->bindParam(":completed", $completed);
             $stmt->bindParam(":user_id", $user_id);
-
-            if ($stmt->execute()) {
-                return [
-                    'errcode' => 0,
-                    'message' => 'add task successful',
-                    'data' => null
-                ];
+            $stmt->execute();
+            if ($stmt->rowCount() > 0) {
+                return $this->createResponse(200, 'add  successful');
             } else {
-                return [
-                    'errcode' => 1,
-                    'message' => 'add task failed',
-                    'data' => null
-                ];
+                return $this->createResponse(404, "not found $user_id");
             }
-        } catch (PDOException $e) {
-            return [
-                'errcode' => 2,
-                'message' => 'Database error: ' . $e->getMessage(),
-                'data' => null
-            ];
+        } catch (\PDOException $e) {
+            return $this->createResponse(500, 'Database error:' . $e->getMessage());
         }
     }
-    public function update($task_id)
+    public function update($task_id, $data)
     {
         try {
-
-            $query = "UPDATE " . $this->table_name . " 
-                  SET title = :title, status = :status, content = :content, priority = :priority,completed=:completed
-                  WHERE task_id = :task_id";
-
-            $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(":title", $this->title);
-            $stmt->bindParam(":status", $this->status);
-            $stmt->bindParam(":content", $this->content);
-            $stmt->bindParam(":priority", $this->priority);
-            $stmt->bindParam(":completed", $this->completed);
-            $stmt->bindParam(":task_id", $task_id);
-
-
-            if ($stmt->execute()) {
-                return [
-                    'errcode' => 0,
-                    'message' => 'Task updated successfully',
-                    'data' => null
-                ];
-            } else {
-                return [
-                    'errcode' => 1,
-                    'message' => 'Task update failed',
-                    'data' => null
-                ];
+            if ($err = $this->validateEmpty('task_id', $task_id)) {
+                return $this->createResponse(404, $err);
             }
-        } catch (PDOException $e) {
-            return [
-                'errcode' => 2,
-                'message' => 'Database error: ' . $e->getMessage(),
-                'data' => null
-            ];
+            if ($err = $this->validateEmpty('title', $data['title'])) {
+                return $this->createResponse(404, $err);
+            }
+            if ($err = $this->validateEmpty('status', $data['status'])) {
+                return $this->createResponse(404, $err);
+            }
+            if ($err = $this->validateEmpty('content', $data['content'])) {
+                return $this->createResponse(404, $err);
+            }
+            if ($err = $this->validateEmpty('priority', $data['priority'])) {
+                return $this->createResponse(404, $err);
+            }
+            $query = "
+                UPDATE " . $this->tableName . " 
+                SET 
+                title = :title, 
+                status = :status, 
+                content = :content, 
+                priority = :priority, 
+                completed = :completed 
+                WHERE 
+                task_id = :task_id 
+            ";
+            $stmt = $this->db->prepare($query);
+            $stmt->bindParam(":task_id", $task_id);
+            $stmt->bindParam(":title", $data['title']);
+            $stmt->bindParam(":content", $data['content']);
+            $stmt->bindParam(":priority", $data['priority']);
+            $stmt->bindParam(":status", $data['status']);;
+            if ($data['content'] == 'incomplete') {
+                $completed = 0;
+            } else {
+                $completed = 1;
+            }
+            $stmt->bindParam(":completed", $completed);
+
+            $stmt->execute();
+            if ($stmt->rowCount() > 0) {
+                return $this->createResponse(200, 'Update successful');
+            } else {
+                return $this->createResponse(404, "Task not found or no changes made");
+            }
+        } catch (\PDOException $e) {
+            return $this->createResponse(500, 'Database error: ' . $e->getMessage());
         }
     }
-    public function updateOneFiled($task_id, $fieldName, $newValue)
+    public function filterByStatusPriority($status, $priority)
     {
         try {
-            $query = "UPDATE " . $this->table_name . " 
-                  SET $fieldName = :newValue
-                  WHERE task_id = :task_id";
-
-            $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(":newValue", $newValue);
-            $stmt->bindParam(":task_id", $task_id);
-
-            if ($stmt->execute()) {
-                return [
-                    'errcode' => 0,
-                    'message' => 'Task updated successfully',
-                    'data' => null
-                ];
-            } else {
-                return [
-                    'errcode' => 1,
-                    'message' => 'Task update failed',
-                    'data' => null
-                ];
+            if ($err = $this->validateEmpty('status', $status)) {
+                return $this->createResponse(404, $err);
             }
-        } catch (PDOException $e) {
-            return [
-                'errcode' => 2,
-                'message' => 'Database error: ' . $e->getMessage(),
-                'data' => null
-            ];
+            if ($err = $this->validateEmpty('priority', $priority)) {
+                return $this->createResponse(404, $err);
+            }
+            $query = 'SELECT * FROM ' . $this->tableName . " WHERE status = :status and priority = :priority ";
+            $stmt = $this->db->prepare($query);
+            $stmt->bindParam(":status", $status);
+            $stmt->bindParam(":priority", $priority);
+            $stmt->execute();
+            $result = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            if (!empty($result)) {
+                return $this->createResponse(200, 'Get data successful', $result);
+            } else {
+                return $this->createResponse(404, 'No data found');
+            }
+        } catch (\PDOException $e) {
+            return $this->createResponse(500, 'Database error: ' . $e->getMessage());
         }
     }
-
-    public  function delete($task_id)
+    public function updateCompletes($task_ids)
     {
         try {
-
-            $query = "DELETE FROM " . $this->table_name . " WHERE task_id = :task_id";
-            $stmt = $this->conn->prepare($query);
-
-
-            $stmt->bindParam(":task_id", $task_id);
-
-            if ($stmt->execute()) {
-                return [
-                    'errcode' => 0,
-                    'message' => 'Task deleted successfully',
-                    'data' => null
-                ];
-            } else {
-                return [
-                    'errcode' => 1,
-                    'message' => 'Failed to delete task',
-                    'data' => null
-                ];
+            if (!is_array($task_ids) || empty($task_ids)) {
+                return $this->createResponse(404, 'no data found');
             }
-        } catch (PDOException $e) {
-            return [
-                'errcode' => 2,
-                'message' => 'Database error: ' . $e->getMessage(),
-                'data' => null
-            ];
+            foreach ($task_ids as $task_id) {
+
+                $query = "
+                UPDATE " . $this->tableName . " 
+                SET  
+                status = :status, 
+                completed = :completed 
+                WHERE 
+                task_id = :task_id 
+            ";
+                $stmt = $this->db->prepare($query);
+                $status = 'completed';
+                $completed = 1;
+                $stmt->bindParam(":status", $status);
+                $stmt->bindParam(":completed", $completed);
+                $stmt->bindParam(":task_id", $task_id);
+                $stmt->execute();
+                if ($stmt->rowCount() <= 0) {
+                    return $this->createResponse(404, "Task id = $task_id not found or no changes made");
+                }
+            }
+            return $this->createResponse(200, 'Update successful');
+        } catch (\PDOException $e) {
+            return $this->createResponse(500, 'Database error: ' . $e->getMessage());
         }
     }
 }

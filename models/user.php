@@ -1,81 +1,64 @@
 <?php
-class UserModel
+
+namespace Models;
+
+use PDO;
+
+require_once dirname(__DIR__) . '\models\base.php';
+class UserModel extends BaseModels
 {
-    private $conn;
-    private $table_name = "user";
-
-    public $id;
-    public $username;
-    public $password;
-
 
     public function __construct($db)
     {
-        $this->conn = $db;
+        $this->tableName = 'user';
+        parent::__construct($db);
     }
-
-    // Thêm người dùng
-    public function create()
+    public function createUser($username, $password)
     {
         try {
-            $query = "INSERT INTO " . $this->table_name . " SET username = :name,  password = :password";
-
-            $stmt = $this->conn->prepare($query);
-            $stmt->bindParam(":name", $this->username);
-            $stmt->bindParam(":password", $this->password);
-
-            if ($stmt->execute()) {
-                return [
-                    'errcode' => 0,
-                    'message' => 'sign in successful',
-                    'data' => null
-                ];
-            } else {
-                return [
-                    'errcode' => 1,
-                    'message' => 'sign IN failed',
-                    'data' => null
-                ];
+            if ($err = $this->validateEmpty('username', $username)) {
+                return $this->createResponse(404, $err);
             }
-        } catch (PDOException $e) {
-            return [
-                'errcode' => 2,
-                'message' => 'Database error: ' . $e->getMessage(),
-                'data' => null
-            ];
+            if ($err = $this->validateEmpty('password', $password)) {
+                return $this->createResponse(404, $err);
+            }
+            $isDuplicate = $this->selectByfiled('username', $username);
+            if ($isDuplicate['httpcode'] == 200) {
+                return $this->createResponse(409, 'username already exists', null);
+            }
+            $query = "INSERT INTO " . $this->tableName . " SET username = :username,password = :password";
+            $stmt = $this->db->prepare($query);
+            $stmt->bindParam(":username", $username);
+            $stmt->bindParam(":password", $password);
+            $stmt->execute();
+            return $this->createResponse(200, 'tạo thành công:', null);
+        } catch (\PDOException $e) {
+            return $this->createResponse(500, 'Database error:' . $e->getMessage());
         }
     }
 
-    public function readOne()
+    public function readOne($username, $password)
     {
         try {
-            $query = "SELECT user_id,username FROM " . $this->table_name . " WHERE username = :username AND password = :password LIMIT 0,1";
-
-            $stmt = $this->conn->prepare($query);
-
-            $stmt->bindParam(":username", $this->username);
-            $stmt->bindParam(":password", $this->password);
-            $stmt->execute();
-            if ($stmt->rowCount() > 0) {
-                $result = $stmt->fetch(PDO::FETCH_ASSOC);
-                return [
-                    'errcode' => 0,
-                    'message' => 'Login successful',
-                    'data' => $result,
-                ];
-            } else {
-                return [
-                    'errcode' => 1,
-                    'message' => 'Login failed',
-                    'data' => null
-                ];
+            if ($err = $this->validateEmpty('username', $username)) {
+                return $this->createResponse(404, $err);
             }
-        } catch (PDOException $e) {
-            return [
-                'errcode' => 2,
-                'message' => 'Database error: ' . $e->getMessage(),
-                'data' => null
-            ];
+            if ($err = $this->validateEmpty('password', $password)) {
+                return $this->createResponse(404, $err);
+            }
+            $query = "SELECT user_id,username FROM " . $this->tableName . " WHERE username = :username and password = :password";
+            $stmt = $this->db->prepare($query);
+            $stmt->bindParam(":username", $username);
+            $stmt->bindParam(":password", $password);
+            $stmt->execute();
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (empty($result)) {
+                return $this->createResponse(401, 'user or pass wrong');
+            } else {
+                return $this->createResponse(200, 'Login successful', $result);
+            }
+        } catch (\PDOException $e) {
+            return $this->createResponse(500, 'database error:' . $e->getMessage());
         }
     }
 }
